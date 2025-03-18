@@ -6,7 +6,8 @@ from tensorflow.keras.applications.mobilenet_v2  import preprocess_input
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.ndimage import rotate
-
+import sys
+import time
 
 def load_data():
     (x_train, y_train), (x_test, y_test) = cifar10.load_data()
@@ -15,11 +16,13 @@ def load_data():
     return x_train, y_train, x_test, y_test
 
 class RotationPairGenerator(tf.keras.utils.Sequence):
-    def __init__(self, images, batch_size=32, rotation_angles=None, image_size=(96, 96), shuffle=True):
+    def __init__(self, images, batch_size=32, rotation_angles=None, image_size=(96, 96), shuffle=True, augment=True):
         self.images = images
         self.batch_size = batch_size
         self.image_size = image_size
         self.shuffle = shuffle
+        self.augment = augment
+        self.augmentation = create_augmentation_layer() if augment else None
         
         # angles every 15 degrees 
         if rotation_angles is None:
@@ -58,8 +61,13 @@ class RotationPairGenerator(tf.keras.utils.Sequence):
             image_rotated_batch.append(img_rotated_resized)
             angle_batch.append(normalized_angle)
         
+
         image_origin_batch = np.array(image_origin_batch)
         image_rotated_batch = np.array(image_rotated_batch)
+
+        if self.augment:
+            image_origin_batch = self.augmentation(image_origin_batch, training=True)
+            image_rotated_batch = self.augmentation(image_rotated_batch, training=True)
 
         image_origin_batch = preprocess_input(image_origin_batch)
         image_rotated_batch = preprocess_input(image_rotated_batch)
@@ -72,13 +80,27 @@ class RotationPairGenerator(tf.keras.utils.Sequence):
 
 def create_augmentation_layer():
     return tf.keras.Sequential([
-        tf.keras.layers.RandomFlip("horizontal"),
-        tf.keras.layers.RandomContrast(0.2),
-        tf.keras.layers.RandomBrightness(0.2),
+        layers.RandomFlip("horizontal"),
+        layers.RandomContrast(0.2),
+        layers.RandomBrightness(0.2),
     ])
 
+# def create_cnn_subnetwork(input_shape):
+#     model = tf.keras.Sequential([
+#         layers.Conv2D(32, (3, 3), padding='same', activation='relu', input_shape=input_shape),
+#         layers.MaxPooling2D((2, 2)),
+#         layers.Conv2D(64, (3, 3), padding='same', activation='relu'),
+#         layers.MaxPooling2D((2, 2)),
+#         layers.Conv2D(128, (3, 3), padding='same', activation='relu'),
+#         layers.MaxPooling2D((2, 2)),
+#         layers.Flatten(),
+#         layers.Dense(256, activation='relu')
+#     ])
+#     return model
 
-def create_siamese_model(input_shape=(96, 96, 3)):
+
+
+def create_siamese_model_mobilenetv2(input_shape=(96, 96, 3)):
     input_image1 = layers.Input(shape=input_shape)
     input_image2 = layers.Input(shape=input_shape)
     
@@ -106,25 +128,30 @@ def create_siamese_model(input_shape=(96, 96, 3)):
     return model
 
 
-def train_siamese_model(epochs=50, batch_size=32):
+def train_siamese_model(epochs=50, batch_size=32, model_name='model'):
+    start_time = time.time()
+
     x_train, y_train, x_test, y_test = load_data()
+
     
     train_gen = RotationPairGenerator(
         x_train, 
         batch_size=batch_size, 
         image_size=(96, 96),
-        shuffle=True
+        shuffle=True,
+        augment=True
     )
     
     val_gen = RotationPairGenerator(
         x_test, 
         batch_size=batch_size, 
         image_size=(96, 96),
-        shuffle=False
+        shuffle=False,
+        augment=False
     )
     
    
-    model = create_siamese_model()
+    model = create_siamese_model_mobilenetv2()
 
     model.compile(
         optimizer=tf.keras.optimizers.Adam(learning_rate=0.0001),
@@ -157,9 +184,11 @@ def train_siamese_model(epochs=50, batch_size=32):
         callbacks=callbacks
     )
     
-    model.save('saved_model')
-    model.save('final_model.h5')
-    
+    model.save(f'{model_name}_saved')
+    model.save(f'{model_name}.h5')
+
+    training_time = time.time()-start_time
+    print(f'\nTraining completed in {training_time:.2f} seconds ({training_time/3600:.2f} hours)')
     return model, history
 
 def plot_training_history(history):
@@ -196,7 +225,12 @@ def plot_training_history(history):
     
    
 if __name__ == "__main__":
-    model, history = train_siamese_model(epochs=1, batch_size=32)
+    if len(sys.argv) != 2:
+        print("Usage: uv run train.py <model_name>")
+        print("Example: uv run train.py <model_siamese_ep10>")
+        sys.exit(1)
+
+    model, history = train_siamese_model(epochs=50, batch_size=32, model_name=sys.argv[1])
     plot_training_history(history)
 
     

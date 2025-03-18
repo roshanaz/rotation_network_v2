@@ -13,7 +13,7 @@ Model that predicts the rotation angle between two images.
 ### Installation (Mac) 
 
 ```bash
-cd Veritone_rotation_exercise
+cd rotation_network_v2
 # install 
 uv python install 3.10
 uv run --group mac  -p 3.10 inference.py test_images/dog4.png test_images/dog4_rotated.png
@@ -23,7 +23,7 @@ uv run --group mac  -p 3.10 inference.py test_images/dog4.png test_images/dog4_r
 ### Installation (Linux) 
 
 ```bash
-cd Veritone_rotation_exercise
+cd rotation_network_v2
 # install 
 uv python install 3.10
 uv run --group linux  -p 3.10 inference.py test_images/dog4.png test_images/dog4_rotated.png
@@ -36,7 +36,7 @@ You can also run it using Docker.
 Following is an example of running the docker image `roshie/rotation` for the image pair (dog4.png and dog4_rotated.png) in the `test_images` folder, you can copy your image pairs inside the `test_images` folder.
 
 ```bash
-cd Veritone_rotation_exercise
+cd rotation_network_v2
 
 docker run -v $PWD/test_images:/imgs roshie/rotation /imgs/dog4.png /imgs/dog4_rotated.png
 ```
