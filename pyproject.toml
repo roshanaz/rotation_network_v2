@@ -1,0 +1,24 @@
+[project]
+name = "veritone"
+version = "0.1.0"
+description = "Image rotation angle prediction"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "ipykernel>=6.29.5",
+    "jupyter>=1.1.1",
+    "keras>=2.15.0",
+    "matplotlib>=3.10.1",
+    "opencv-python>=4.11.0.86",
+    "scikit-image>=0.25.2",
+    "scipy>=1.15.2",
+    "ydata-profiling>=4.12.2",
+]
+
+[dependency-groups]
+linux = [
+    "tensorflow==2.15.0",
+]
+mac = [
+    "tensorflow-macos==2.15.0",
+]
