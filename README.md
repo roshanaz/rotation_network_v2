@@ -41,3 +41,6 @@ cd Veritone_rotation_exercise
 docker run -v $PWD/test_images:/imgs roshie/rotation /imgs/dog4.png /imgs/dog4_rotated.png
 ```
 
+=======
+# rotation_network_v2
+includes train and inference code
