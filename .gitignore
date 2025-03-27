@@ -2,3 +2,5 @@
 saved_model/
 saved_model/
 *.h5
+.venv
+uv.lock
