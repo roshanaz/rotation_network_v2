@@ -11,6 +11,7 @@ dependencies = [
     "matplotlib>=3.10.1",
     "opencv-python>=4.11.0.86",
     "scikit-image>=0.25.2",
+    "scikit-learn>=1.6.1",
     "scipy>=1.15.2",
     "ydata-profiling>=4.12.2",
 ]

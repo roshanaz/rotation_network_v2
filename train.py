@@ -85,18 +85,40 @@ def create_augmentation_layer():
         layers.RandomBrightness(0.2),
     ])
 
-# def create_cnn_subnetwork(input_shape):
-#     model = tf.keras.Sequential([
-#         layers.Conv2D(32, (3, 3), padding='same', activation='relu', input_shape=input_shape),
-#         layers.MaxPooling2D((2, 2)),
-#         layers.Conv2D(64, (3, 3), padding='same', activation='relu'),
-#         layers.MaxPooling2D((2, 2)),
-#         layers.Conv2D(128, (3, 3), padding='same', activation='relu'),
-#         layers.MaxPooling2D((2, 2)),
-#         layers.Flatten(),
-#         layers.Dense(256, activation='relu')
-#     ])
-#     return model
+def create_cnn_subnetwork(input_shape):
+    model = tf.keras.Sequential([
+        layers.Conv2D(32, (3, 3), padding='same', activation='relu', input_shape=input_shape),
+        layers.MaxPooling2D((2, 2)),
+        layers.Conv2D(64, (3, 3), padding='same', activation='relu'),
+        layers.MaxPooling2D((2, 2)),
+        layers.Conv2D(128, (3, 3), padding='same', activation='relu'),
+        layers.MaxPooling2D((2, 2)),
+        layers.Flatten(),
+        layers.Dense(256, activation='relu')
+    ])
+    return model
+
+
+def create_siamese_network_cnn(input_shape=(96, 96, 3)):
+    input1 - layers.Input(shape=input_shape)
+    input2 - layers.Input(shape=input_shape)
+
+    cnn = create_cnn_subnetwork(jnput_shape=input_shape)
+
+    f1 = cnn(input1)
+    f2 = cnn(input2)
+
+    # change this to concat to test the difference
+    diff = layers.Substract()([f1, f2])
+
+    x = layers.Dense(128, activation='relu')(diff)
+    x = layers.Dense(64, activation='relu')(x)
+    output = layers.Dense(1)(x)
+
+    model = Model(inputs=[input1, input2], outputs=output)
+    return model
+
+
 
 
 
@@ -150,8 +172,10 @@ def train_siamese_model(epochs=50, batch_size=32, model_name='model'):
         augment=False
     )
     
-   
-    model = create_siamese_model_mobilenetv2()
+    if 'siamese' in model_name:
+        model = create_siamese_model_mobilenetv2()
+    if 'cnn' in model_name:
+        model = create_siamese_network_cnn()
 
     model.compile(
         optimizer=tf.keras.optimizers.Adam(learning_rate=0.0001),
