@@ -13,6 +13,7 @@ dependencies = [
     "scikit-image>=0.25.2",
     "scikit-learn>=1.6.1",
     "scipy>=1.15.2",
+    "transformers>=4.50.2",
     "ydata-profiling>=4.12.2",
 ]
 
