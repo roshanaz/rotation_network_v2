@@ -184,7 +184,7 @@ def create_siamese_model_mobilenetv2(input_shape=(96, 96, 3)):
     return model
 
 
-def train_siamese_model(epochs=50, batch_size=32, model_type='mobilenetv2'):
+def train_siamese_model(model_type, epochs, batch_size=32):
     start_time = time.time()
 
     x_train, y_train, x_test, y_test = load_data()
@@ -288,12 +288,15 @@ def plot_training_history(history, model_type, epochs, batch_size):
    
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Train a Siamese network for rotation prediction')
-    parser.add_argument('--model-type', type=str, choices=['mobilenetv2', 'basic_cnn', 'clip'],
-                      default='mobilenetv2', help='Type of model architecture to use')
-    parser.add_argument('--epochs', type=int, default=50,
-                      help='Number of epochs to train')
+    parser.add_argument('--model-type', type=str, 
+                        choices=['mobilenetv2', 'basic_cnn', 'clip'],
+                        required=True,
+                        help='Type of model architecture to use')
+    parser.add_argument('--epochs', type=int,
+                        required=True,
+                        help='Number of epochs to train')
     parser.add_argument('--batch-size', type=int, default=32,
-                      help='Batch size for training')
+                        help='Batch size for training')
     
     args = parser.parse_args()
     
@@ -303,9 +306,9 @@ if __name__ == "__main__":
     print(f"Batch Size: {args.batch_size}\n")
 
     model, history = train_siamese_model(
+        model_type=args.model_type,
         epochs=args.epochs,
-        batch_size=args.batch_size,
-        model_type=args.model_type
+        batch_size=args.batch_size
     )
     plot_training_history(
         history, 
