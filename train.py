@@ -31,7 +31,7 @@ class RotationPairGenerator(tf.keras.utils.Sequence):
         self.augmentation = create_augmentation_layer() if augment else None
 
         if model_type == 'clip':
-            self.processor = CLIPProcessor.from_pretrained("openai/clip-vit-base-patch32")
+            self.processor = CLIPProcessor.from_pretrained("openai/clip-vit-base-patch32", use_fast=True)
         
         # angles every 15 degrees 
         if rotation_angles is None:
@@ -89,8 +89,8 @@ class RotationPairGenerator(tf.keras.utils.Sequence):
             image_rotated_batch = np.clip(image_rotated_batch, 0.0, 1.0)
 
             # CLIP's processor handles the normalization
-            image_origin_batch = self.processor(images=image_origin_batch, return_tensors="np")['pixel_values']
-            image_rotated_batch = self.processor(images=image_rotated_batch, return_tensors="np")['pixel_values']
+            image_origin_batch = self.processor(images=image_origin_batch, return_tensors="np", do_rescale=False)['pixel_values']
+            image_rotated_batch = self.processor(images=image_rotated_batch, return_tensors="np", do_rescale=False)['pixel_values']
         else:
             # MobileNetV2 preprocessing for other models
             image_origin_batch = preprocess_input(image_origin_batch)
@@ -115,7 +115,7 @@ def create_clip_siamese_model(input_shape=(96, 96, 3)):
     input_image2 = layers.Input(shape=input_shape)
 
     # # Load both the processor and model
-    processor = CLIPProcessor.from_pretrained("openai/clip-vit-base-patch32")
+    processor = CLIPProcessor.from_pretrained("openai/clip-vit-base-patch32", use_fast=True)
     clip = CLIPModel.from_pretrained("openai/clip-vit-base-patch32")
     
     class CLIPVisionLayer(layers.Layer):
@@ -162,7 +162,7 @@ def create_clip_siamese_model(input_shape=(96, 96, 3)):
         def from_config(cls, config):
             print("\nReceived config for rebuilding:", config)
             # When loading, we'll recreate the CLIP model
-            processor = CLIPProcessor.from_pretrained("openai/clip-vit-base-patch32")
+            processor = CLIPProcessor.from_pretrained("openai/clip-vit-base-patch32", use_fast=True)
             model = CLIPModel.from_pretrained("openai/clip-vit-base-patch32")
             return cls(processor, model, **config)
 
@@ -316,8 +316,7 @@ def train_siamese_model(model_type, epochs, batch_size=32):
         callbacks=callbacks
     )
     
-    model.save(f'{model_type}_e{epochs}_b{batch_size}_saved')
-    model.save(f'{model_type}_e{epochs}_b{batch_size}.h5')
+    model.save(f'{model_type}_e{epochs}_b{batch_size}.keras')
 
     training_time = time.time()-start_time
     print(f'\nTraining completed in {training_time:.2f} seconds ({training_time/3600:.2f} hours)')
