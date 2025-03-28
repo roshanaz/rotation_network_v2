@@ -137,9 +137,8 @@ def create_clip_siamese_model(input_shape=(96, 96, 3)):
                         outputs = outputs.cpu()
                     # move back to CPU for numpy comversion
                     outputs = outputs.numpy()
-                return outputs.cpu().numpy()
+                    return outputs
             
-            # Use tf.py_function to wrap the PyTorch code
             processed_tensor = tf.py_function(
                 process_batch,
                 [inputs],
