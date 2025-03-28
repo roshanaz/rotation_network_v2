@@ -184,7 +184,7 @@ def create_siamese_model_mobilenetv2(input_shape=(96, 96, 3)):
     return model
 
 
-def train_siamese_model(epochs=50, batch_size=32, model_name='model', model_type='mobilenetv2'):
+def train_siamese_model(epochs=50, batch_size=32, model_type='mobilenetv2'):
     start_time = time.time()
 
     x_train, y_train, x_test, y_test = load_data()
@@ -223,7 +223,7 @@ def train_siamese_model(epochs=50, batch_size=32, model_name='model', model_type
     
     callbacks = [
         tf.keras.callbacks.ModelCheckpoint(
-            f'best_{model_name}_{model_type}.h5',
+            f'best_{model_type}_e{epochs}_b{batch_size}.h5',
             save_best_only=True,
             monitor='val_loss'
         ),
@@ -246,14 +246,14 @@ def train_siamese_model(epochs=50, batch_size=32, model_name='model', model_type
         callbacks=callbacks
     )
     
-    model.save(f'{model_name}_{model_type}_saved')
-    model.save(f'{model_name}_{model_type}.h5')
+    model.save(f'{model_type}_e{epochs}_b{batch_size}_saved')
+    model.save(f'{model_type}_e{epochs}_b{batch_size}.h5')
 
     training_time = time.time()-start_time
     print(f'\nTraining completed in {training_time:.2f} seconds ({training_time/3600:.2f} hours)')
     return model, history
 
-def plot_training_history(history, model_name, model_type):
+def plot_training_history(history, model_type, epochs, batch_size):
     """
     Plot the training and validation loss and save to disk
     """
@@ -280,7 +280,7 @@ def plot_training_history(history, model_name, model_type):
         plt.grid(True, linestyle='--', alpha=0.6)
     
     plt.tight_layout()
-    plt.savefig(f'training_history_{model_name}_{model_type}.png')
+    plt.savefig(f'training_history_{model_type}_e{epochs}_b{batch_size}.png')
     plt.close()
 
 
@@ -294,24 +294,25 @@ if __name__ == "__main__":
                       help='Number of epochs to train')
     parser.add_argument('--batch-size', type=int, default=32,
                       help='Batch size for training')
-    parser.add_argument('--save-name', type=str, required=True,
-                      help='Name to use when saving the model')
     
     args = parser.parse_args()
     
     print(f"\nTraining Configuration:")
     print(f"Model Type: {args.model_type}")
     print(f"Epochs: {args.epochs}")
-    print(f"Batch Size: {args.batch_size}")
-    print(f"Save Name: {args.save_name}\n")
+    print(f"Batch Size: {args.batch_size}\n")
 
     model, history = train_siamese_model(
         epochs=args.epochs,
         batch_size=args.batch_size,
-        model_name=args.save_name,
         model_type=args.model_type
     )
-    plot_training_history(history, model_name=args.save_name, model_type=args.model_type)
+    plot_training_history(
+        history, 
+        model_type=args.model_type,
+        epochs=args.epochs,
+        batch_size=args.batch_size
+    )
 
     
     
