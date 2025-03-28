@@ -83,6 +83,11 @@ class RotationPairGenerator(tf.keras.utils.Sequence):
             # Normalize to [0,1] for CLIP only
             image_origin_batch = image_origin_batch / 255.0
             image_rotated_batch = image_rotated_batch / 255.0
+
+            # Clip values to ensure they stay in [0,1] range after augmentation
+            image_origin_batch = np.clip(image_origin_batch, 0.0, 1.0)
+            image_rotated_batch = np.clip(image_rotated_batch, 0.0, 1.0)
+
             # CLIP's processor handles the normalization
             image_origin_batch = self.processor(images=image_origin_batch, return_tensors="np")['pixel_values']
             image_rotated_batch = self.processor(images=image_rotated_batch, return_tensors="np")['pixel_values']
@@ -109,7 +114,7 @@ def create_clip_siamese_model(input_shape=(96, 96, 3)):
     input_image1 = layers.Input(shape=input_shape)
     input_image2 = layers.Input(shape=input_shape)
 
-    # Load both the processor and model
+    # # Load both the processor and model
     processor = CLIPProcessor.from_pretrained("openai/clip-vit-base-patch32")
     clip = CLIPModel.from_pretrained("openai/clip-vit-base-patch32")
     
@@ -147,6 +152,20 @@ def create_clip_siamese_model(input_shape=(96, 96, 3)):
             # Set the shape explicitly
             processed_tensor.set_shape((None, 512))  # CLIP's output dimension
             return processed_tensor
+        
+        def get_config(self):
+            config = super().get_config()
+            print("\nBase config from parent Layer:", config)
+            return config
+        
+        @classmethod
+        def from_config(cls, config):
+            print("\nReceived config for rebuilding:", config)
+            # When loading, we'll recreate the CLIP model
+            processor = CLIPProcessor.from_pretrained("openai/clip-vit-base-patch32")
+            model = CLIPModel.from_pretrained("openai/clip-vit-base-patch32")
+            return cls(processor, model, **config)
+
     
     vision_layer = CLIPVisionLayer(processor, clip)
     
@@ -232,6 +251,12 @@ def train_siamese_model(model_type, epochs, batch_size=32):
 
     x_train, y_train, x_test, y_test = load_data()
 
+    # For quick testing, use only a small portion of the data
+    test_size = 1000  # or any small number
+    x_train = x_train[:test_size]
+    x_test = x_test[:test_size]
+    test_batch_size = 128
+    batch_size = test_batch_size
     
     train_gen = RotationPairGenerator(
         x_train, 
