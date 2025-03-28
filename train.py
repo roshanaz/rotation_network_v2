@@ -10,6 +10,8 @@ import sys
 import time
 from transformers import CLIPProcessor, CLIPModel
 import argparse
+from transformers import TFCLIPModel
+import torch
 
 
 def load_data():
@@ -19,13 +21,17 @@ def load_data():
     return x_train, y_train, x_test, y_test
 
 class RotationPairGenerator(tf.keras.utils.Sequence):
-    def __init__(self, images, batch_size=32, rotation_angles=None, image_size=(96, 96), shuffle=True, augment=True):
+    def __init__(self, images, batch_size=32, rotation_angles=None, image_size=(96, 96), shuffle=True, augment=True, model_type='mobilenetv2'):
         self.images = images
         self.batch_size = batch_size
         self.image_size = image_size
         self.shuffle = shuffle
         self.augment = augment
+        self.model_type = model_type
         self.augmentation = create_augmentation_layer() if augment else None
+
+        if model_type == 'clip':
+            self.processor = CLIPProcessor.from_pretrained("openai/clip-vit-base-patch32")
         
         # angles every 15 degrees 
         if rotation_angles is None:
@@ -72,8 +78,19 @@ class RotationPairGenerator(tf.keras.utils.Sequence):
             image_origin_batch = self.augmentation(image_origin_batch, training=True)
             image_rotated_batch = self.augmentation(image_rotated_batch, training=True)
 
-        image_origin_batch = preprocess_input(image_origin_batch)
-        image_rotated_batch = preprocess_input(image_rotated_batch)
+        # Use appropriate preprocessing based on model type
+        if self.model_type == 'clip':
+            # Normalize to [0,1] for CLIP only
+            image_origin_batch = image_origin_batch / 255.0
+            image_rotated_batch = image_rotated_batch / 255.0
+            # CLIP's processor handles the normalization
+            image_origin_batch = self.processor(images=image_origin_batch, return_tensors="np")['pixel_values']
+            image_rotated_batch = self.processor(images=image_rotated_batch, return_tensors="np")['pixel_values']
+        else:
+            # MobileNetV2 preprocessing for other models
+            image_origin_batch = preprocess_input(image_origin_batch)
+            image_rotated_batch = preprocess_input(image_rotated_batch)
+
 
         return [image_origin_batch, image_rotated_batch], np.array(angle_batch)
     
@@ -92,30 +109,57 @@ def create_clip_siamese_model(input_shape=(96, 96, 3)):
     input_image1 = layers.Input(shape=input_shape)
     input_image2 = layers.Input(shape=input_shape)
 
-    # load pretrained CLIP
+    # Load both the processor and model
+    processor = CLIPProcessor.from_pretrained("openai/clip-vit-base-patch32")
     clip = CLIPModel.from_pretrained("openai/clip-vit-base-patch32")
-    clip_processor = CLIPProcessor.from_pretrained("openai/clip-vit-base-patch32")
+    
+    class CLIPVisionLayer(layers.Layer):
+        def __init__(self, processor, model, **kwargs):
+            super().__init__(**kwargs)
+            # self.processor = processor
+            self.model = model
+            # Move model to GPU if available
+            if torch.cuda.is_available():
+                self.model = self.model.cuda()
+            
+        def call(self, inputs, training=False):
+            def process_batch(x):
+                # Images are already preprocessed by the generator
+                x_torch = torch.from_numpy(x.numpy())
+                # move to GPU if available
+                if torch.cuda.is_available():
+                    x_torch = x_torch.cuda()
+                
+                # Process entire batch in one forward pass
+                with torch.no_grad():
+                    outputs = self.model.get_image_features(x_torch)
+                    if torch.cuda.is_available():
+                        outputs = outputs.cpu()
+                    # move back to CPU for numpy comversion
+                    outputs = outputs.numpy()
+                return outputs.cpu().numpy()
+            
+            # Use tf.py_function to wrap the PyTorch code
+            processed_tensor = tf.py_function(
+                process_batch,
+                [inputs],
+                tf.float32
+            )
+            # Set the shape explicitly
+            processed_tensor.set_shape((None, 512))  # CLIP's output dimension
+            return processed_tensor
+    
+    vision_layer = CLIPVisionLayer(processor, clip)
+    
+    features1 = vision_layer(input_image1)
+    features2 = vision_layer(input_image2)
 
-    # Use only the vision encoder
-    vision_encoder = clip.vision_model
-
-
-    # Get visual features
-    features1 = vision_encoder(input_image1)
-    features2 = vision_encoder(input_image2)
-
-    # Pool features
-    pooled1 = features1.pooler_output
-    pooled2 = features2.pooler_output
-
-    concat = layers.Concatenate()([pooled1, pooled2])
-
+    concat = layers.Concatenate()([features1, features2])
     x = layers.Dense(512, activation='relu')(concat)
     x = layers.Dense(256, activation='relu')(x)
     output = layers.Dense(1, activation='linear')(x)
 
     model = Model(inputs=[input_image1, input_image2], outputs=output)
-
     return model
 
 
@@ -195,7 +239,8 @@ def train_siamese_model(model_type, epochs, batch_size=32):
         batch_size=batch_size, 
         image_size=(96, 96),
         shuffle=True,
-        augment=True
+        augment=True,
+        model_type=model_type.lower()
     )
     
     val_gen = RotationPairGenerator(
@@ -203,7 +248,8 @@ def train_siamese_model(model_type, epochs, batch_size=32):
         batch_size=batch_size, 
         image_size=(96, 96),
         shuffle=False,
-        augment=False
+        augment=False,
+        model_type=model_type.lower()
     )
     
     if model_type.lower() =='mobilenetv2':
