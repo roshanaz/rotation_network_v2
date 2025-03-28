@@ -8,6 +8,8 @@ import matplotlib.pyplot as plt
 from scipy.ndimage import rotate
 import sys
 import time
+from transformers import CLIPProcessor, CLIPModel
+
 
 def load_data():
     (x_train, y_train), (x_test, y_test) = cifar10.load_data()
@@ -85,6 +87,37 @@ def create_augmentation_layer():
         layers.RandomBrightness(0.2),
     ])
 
+def create_clip_siamese_model(input_shape=(96, 96, 3)):
+    input_image1 = layers.Input(shape=input_shape)
+    input_image2 = layers.Input(shape=input_shape)
+
+    # load pretrained CLIP
+    clip = CLIPModel.from_pretrained("openai/clip-vit-base-patch32")
+    clip_processor = CLIPProcessor.from_pretrained("openai/clip-vit-base-patch32")
+
+    # Use only the vision encoder
+    vision_encoder = clip.vision_model
+
+
+    # Get visual features
+    features1 = vision_encoder(input_image1)
+    features2 = vision_encoder(input_image2)
+
+    # Pool features
+    pooled1 = features1.pooler_output
+    pooled2 = features2.pooler_output
+
+    concat = layers.Concatenate()([pooled1, pooled2])
+
+    x = layers.Dense(512, activation='relu')(concat)
+    x = layers.Dense(256, activation='relu')(x)
+    output = layers.Dense(1, activation='linear')(x)
+
+    model = Model(inputs=[input_image1, input_image2], outputs=output)
+
+    return model
+
+
 def create_cnn_subnetwork(input_shape):
     model = tf.keras.Sequential([
         layers.Conv2D(32, (3, 3), padding='same', activation='relu', input_shape=input_shape),
@@ -100,8 +133,8 @@ def create_cnn_subnetwork(input_shape):
 
 
 def create_siamese_network_cnn(input_shape=(96, 96, 3)):
-    input1 - layers.Input(shape=input_shape)
-    input2 - layers.Input(shape=input_shape)
+    input1 = layers.Input(shape=input_shape)
+    input2 = layers.Input(shape=input_shape)
 
     cnn = create_cnn_subnetwork(jnput_shape=input_shape)
 
@@ -176,6 +209,8 @@ def train_siamese_model(epochs=50, batch_size=32, model_name='model'):
         model = create_siamese_model_mobilenetv2()
     if 'cnn' in model_name:
         model = create_siamese_network_cnn()
+    if 'clip' in model_name:
+        model = create_clip_siamese_model()
 
     model.compile(
         optimizer=tf.keras.optimizers.Adam(learning_rate=0.0001),
