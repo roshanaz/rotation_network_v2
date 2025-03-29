@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 from scipy.ndimage import rotate
 import sys
 import time
-from transformers import CLIPProcessor, CLIPModel
+from transformers import CLIPProcessor, CLIPModel, CLIPImageProcessor
 import argparse
 from transformers import TFCLIPModel
 import torch
@@ -31,7 +31,7 @@ class RotationPairGenerator(tf.keras.utils.Sequence):
         self.augmentation = create_augmentation_layer() if augment else None
 
         if model_type == 'clip':
-            self.processor = CLIPProcessor.from_pretrained("openai/clip-vit-base-patch32", use_fast=True)
+            self.processor = CLIPImageProcessor.from_pretrained("openai/clip-vit-base-patch32")
         
         # angles every 15 degrees 
         if rotation_angles is None:
@@ -89,8 +89,16 @@ class RotationPairGenerator(tf.keras.utils.Sequence):
             image_rotated_batch = np.clip(image_rotated_batch, 0.0, 1.0)
 
             # CLIP's processor handles the normalization
-            image_origin_batch = self.processor(images=image_origin_batch, return_tensors="np", do_rescale=False)['pixel_values']
-            image_rotated_batch = self.processor(images=image_rotated_batch, return_tensors="np", do_rescale=False)['pixel_values']
+            image_origin_batch = self.processor(
+                images=image_origin_batch, 
+                return_tensors="np",
+                do_rescale=False
+            )['pixel_values']
+            image_rotated_batch = self.processor(
+                images=image_rotated_batch, 
+                return_tensors="np",
+                do_rescale=False
+            )['pixel_values']
         else:
             # MobileNetV2 preprocessing for other models
             image_origin_batch = preprocess_input(image_origin_batch)
@@ -121,9 +129,7 @@ def create_clip_siamese_model(input_shape=(96, 96, 3)):
     class CLIPVisionLayer(layers.Layer):
         def __init__(self, processor, model, **kwargs):
             super().__init__(**kwargs)
-            # self.processor = processor
             self.model = model
-            # Move model to GPU if available
             if torch.cuda.is_available():
                 self.model = self.model.cuda()
             
@@ -154,15 +160,12 @@ def create_clip_siamese_model(input_shape=(96, 96, 3)):
             return processed_tensor
         
         def get_config(self):
-            config = super().get_config()
-            print("\nBase config from parent Layer:", config)
-            return config
+            base_config = super().get_config()
+            return base_config
         
         @classmethod
         def from_config(cls, config):
-            print("\nReceived config for rebuilding:", config)
-            # When loading, we'll recreate the CLIP model
-            processor = CLIPProcessor.from_pretrained("openai/clip-vit-base-patch32", use_fast=True)
+            processor = CLIPImageProcessor.from_pretrained("openai/clip-vit-base-patch32")
             model = CLIPModel.from_pretrained("openai/clip-vit-base-patch32")
             return cls(processor, model, **config)
 
@@ -250,17 +253,11 @@ def train_siamese_model(model_type, epochs, batch_size=32):
     start_time = time.time()
 
     x_train, y_train, x_test, y_test = load_data()
-
-    # For quick testing, use only a small portion of the data
-    test_size = 1000  # or any small number
-    x_train = x_train[:test_size]
-    x_test = x_test[:test_size]
-    test_batch_size = 128
-    batch_size = test_batch_size
     
+    # Remove the test_size limit to use full dataset
     train_gen = RotationPairGenerator(
-        x_train, 
-        batch_size=batch_size, 
+        x_train,  # Use full training data
+        batch_size=batch_size,  # Back to original batch size
         image_size=(96, 96),
         shuffle=True,
         augment=True,
@@ -268,8 +265,8 @@ def train_siamese_model(model_type, epochs, batch_size=32):
     )
     
     val_gen = RotationPairGenerator(
-        x_test, 
-        batch_size=batch_size, 
+        x_test,  # Use full test data
+        batch_size=batch_size,
         image_size=(96, 96),
         shuffle=False,
         augment=False,
